@@ -102,50 +102,62 @@ function App() {
 
 	useEffect(() => {
 		const el = ref.current?.querySelector('svg');
+		//--------------------------------------------
+		if (!el) {
+			return;
+		}
+		//--------------------------------------------
 		const e = el?.querySelector(`[data-id="${id}"]`) as SVGAElement | SVGPolygonElement;
+		const bbox = (e as SVGAElement | SVGPolygonElement).getBBox();
+		const styles = getComputedStyle?.(e);
+		const parent = el.getBoundingClientRect();
+		const rect = e.getBoundingClientRect();
+		const relativeX = rect.left - parent.left;
+		const relativeY = rect.top - parent.top;
+
+		//--------------------------------------------
+		const mouseEnter = (event) => {
+			e.style.fill = darkenColor(styles.fill!, 10);
+			const textElementData = el.querySelector(`[data-id-text="${e.getAttribute('data-id')}"]`) as SVGAElement;
+			textElementData?.remove();
+
+			setPosition({
+				x: `${relativeX}`,
+				y: `${relativeY}`,
+				width: `${rect.width / 2}`,
+				height: `${rect.height / 2}`,
+			});
+			setIsShowPopup(true);
+		};
+		//--------------------------------------------
+		const mouseLeave = () => {
+			setIsShowPopup(false);
+			e.style.fill = e.getAttribute('data-color')!;
+
+			const element = el.querySelector(`[data-id-hover="${el.getAttribute('data-id')}"]`) as SVGAElement;
+			const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+			textElement.setAttribute('x', `${bbox.x + bbox.width / 2}`);
+			textElement.setAttribute('y', `${bbox.y + bbox.height / 2}`);
+			textElement.setAttribute('font-size', '22');
+			textElement.setAttribute('fill', 'black');
+			textElement.setAttribute('data-id-text', `${e.getAttribute('data-id')}`);
+			textElement.textContent = `${e.getAttribute('data-id')}`;
+
+			el.appendChild(textElement);
+			element?.remove();
+		};
+		//--------------------------------------------
 		if (!isOpen) {
 			if (el) {
-				const bbox = (e as SVGAElement | SVGPolygonElement).getBBox();
-				const styles = getComputedStyle?.(e);
-				e?.addEventListener('mouseenter', (event) => {
-					e.style.fill = darkenColor(styles.fill!, 10);
-					const parent = el.getBoundingClientRect();
-					const rect = e.getBoundingClientRect();
-
-					const relativeX = rect.left - parent.left;
-					const relativeY = rect.top - parent.top;
-
-					const textElementData = el.querySelector(`[data-id-text="${e.getAttribute('data-id')}"]`) as SVGAElement;
-					textElementData?.remove();
-
-					setPosition({
-						x: `${relativeX}`,
-						y: `${relativeY}`,
-						width: `${rect.width}`,
-						height: `${rect.height}`,
-					});
-					setIsShowPopup(true);
-				});
-
-				e?.addEventListener('mouseleave', (event) => {
-					console.log(event.target);
-					setIsShowPopup(false);
-					e.style.fill = e.getAttribute('data-color')!;
-
-					const element = el.querySelector(`[data-id-hover="${el.getAttribute('data-id')}"]`) as SVGAElement;
-					const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-					textElement.setAttribute('x', `${bbox.x + bbox.width / 2}`);
-					textElement.setAttribute('y', `${bbox.y + bbox.height / 2}`);
-					textElement.setAttribute('font-size', '22');
-					textElement.setAttribute('fill', 'black');
-					textElement.setAttribute('data-id-text', `${e.getAttribute('data-id')}`);
-					textElement.textContent = `${e.getAttribute('data-id')}`;
-
-					el.appendChild(textElement);
-					element?.remove();
-				});
+				e?.addEventListener('mouseenter', mouseEnter);
+				e?.addEventListener('mouseleave', mouseLeave);
 			}
 		}
+
+		return () => {
+			e.removeEventListener('mouseenter', mouseEnter);
+			e.removeEventListener('mouseleave', mouseLeave);
+		};
 	}, [id, ref, isOpen]);
 	return (
 		<div className="flex flex-col items-center justify-start bg-slate-300 h-full w-full relative">
