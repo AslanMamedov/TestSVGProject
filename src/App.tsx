@@ -17,9 +17,11 @@ function darkenColor(rgb: string, percentage: number): string {
 function App() {
 	const [svgContent, setSvgContent] = useState<string | null | TrustedHTML>(null);
 	const [svgContentTwo, setSvgContentTwo] = useState<string | null | TrustedHTML | undefined>(null);
-	const [targets, setTargets] = useState<Record<any, any>[]>([]);
-	const [count, setCount] = useState(0);
+	// const [targets, setTargets] = useState<Record<string, string>[]>([])
+	const [isShowPopup, setIsShowPopup] = useState(false);
+	const [count, setCount] = useState(1);
 	const [id, setId] = useState('');
+	const [position, setPosition] = useState<Record<string, string>>({});
 	const [data, setData] = useState<{ id: number | string | null; isOpen: boolean }>({
 		id: null,
 		isOpen: false,
@@ -50,13 +52,14 @@ function App() {
 			setCount((prev) => prev + 1);
 			target.setAttribute('data-id', `${count}`);
 			target.setAttribute('data-color', styles.fill!);
-			setTargets((prev) => [
-				...prev,
-				{
-					target: target,
-					index: count,
-				},
-			]);
+			target.setAttribute('data-data', JSON.stringify({ id: count, text: `SOME company -${count}` }));
+			// setTargets((prev) => [
+			// 	...prev,
+			// 	{
+			// 		target: target,
+			// 		index: count,
+			// 	},
+			// ]);
 		}
 		setData({
 			id: target.getAttribute('data-id'),
@@ -67,21 +70,15 @@ function App() {
 
 		target.style.fill = darkenColor(styles.fill!, 10);
 		const bbox = (target as SVGRectElement | SVGPolygonElement).getBBox();
-		console.log(bbox, target);
+
 		const svg = target.parentNode;
 		if (svg) {
-			const existingText = svg.querySelector(`text[data-id="${target.getAttribute('data-id')}"]`);
-			if (existingText) {
-				existingText.remove();
-			}
-
 			const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
 			textElement.setAttribute('x', `${bbox.x + bbox.width / 2}`);
 			textElement.setAttribute('y', `${bbox.y + bbox.height / 2}`);
-
 			textElement.setAttribute('font-size', '22');
 			textElement.setAttribute('fill', 'black');
-			textElement.setAttribute('data-id', `${target.getAttribute('data-id')}`);
+			textElement.setAttribute('data-id-text', `${target.getAttribute('data-id')}`);
 			textElement.textContent = `${target.getAttribute('data-id')}`;
 
 			svg.appendChild(textElement);
@@ -89,8 +86,9 @@ function App() {
 	};
 	const handleSvgClickTwo = (event: React.MouseEvent<HTMLDivElement>) => {
 		const target = event.target as SVGElement;
-		console.log(target)
-	}
+		console.log(target);
+	};
+
 	useEffect(() => {
 		const el = ref.current?.querySelector('svg');
 		const e = el?.querySelector(`[data-id="${id}"]`) as SVGAElement;
@@ -102,11 +100,58 @@ function App() {
 		}
 	}, [id, ref, isOpen]);
 
+	useEffect(() => {
+		const el = ref.current?.querySelector('svg');
+		const e = el?.querySelector(`[data-id="${id}"]`) as SVGAElement | SVGPolygonElement;
+		if (!isOpen) {
+			if (el) {
+				const bbox = (e as SVGAElement | SVGPolygonElement).getBBox();
+				const styles = getComputedStyle?.(e);
+				e?.addEventListener('mouseenter', (event) => {
+					e.style.fill = darkenColor(styles.fill!, 10);
+					const parent = el.getBoundingClientRect();
+					const rect = e.getBoundingClientRect();
+
+					const relativeX = rect.left - parent.left;
+					const relativeY = rect.top - parent.top;
+
+					const textElementData = el.querySelector(`[data-id-text="${e.getAttribute('data-id')}"]`) as SVGAElement;
+					textElementData?.remove();
+
+					setPosition({
+						x: `${relativeX}`,
+						y: `${relativeY}`,
+						width: `${rect.width}`,
+						height: `${rect.height}`,
+					});
+					setIsShowPopup(true);
+				});
+
+				e?.addEventListener('mouseleave', (event) => {
+					console.log(event.target);
+					setIsShowPopup(false);
+					e.style.fill = e.getAttribute('data-color')!;
+
+					const element = el.querySelector(`[data-id-hover="${el.getAttribute('data-id')}"]`) as SVGAElement;
+					const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+					textElement.setAttribute('x', `${bbox.x + bbox.width / 2}`);
+					textElement.setAttribute('y', `${bbox.y + bbox.height / 2}`);
+					textElement.setAttribute('font-size', '22');
+					textElement.setAttribute('fill', 'black');
+					textElement.setAttribute('data-id-text', `${e.getAttribute('data-id')}`);
+					textElement.textContent = `${e.getAttribute('data-id')}`;
+
+					el.appendChild(textElement);
+					element?.remove();
+				});
+			}
+		}
+	}, [id, ref, isOpen]);
 	return (
 		<div className="flex flex-col items-center justify-start bg-slate-300 h-full w-full relative">
 			<input type="file" onChange={onChange} />
 			{isOpen && (
-				<div className="absolute w-full h-full  flex items-center justify-center ">
+				<div className="absolute w-full h-full  flex items-center justify-center z-[9999999] ">
 					<div className="absolute  bg-red-400 w-[500px] h-[500px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
 						{data.isOpen && <div>some</div>}
 						{data.id}
@@ -134,8 +179,26 @@ function App() {
 				button
 			</button>
 			<div className="flex  gap-4 h-screen flex-col w-screen">
-				<div className="w-screen h-full border border-red-400 ">
-					<div ref={ref} dangerouslySetInnerHTML={{ __html: svgContent! }} onClick={handleSvgClick} />
+				<div className=" border border-red-400 relative">
+					<div
+						className="relative"
+						ref={ref}
+						dangerouslySetInnerHTML={{ __html: svgContent! }}
+						onClick={handleSvgClick}
+					/>
+					{isShowPopup && (
+						<span
+							style={{
+								left: `${position?.x}px`,
+								top: `${position?.y}px`,
+								width: `${position?.width}px`,
+								height: `${position?.height}px`,
+							}}
+							className={`absolute text-[20px] text-white  font-semibold  z-[1000] flex items-center justify-center p-10 `}
+						>
+							1
+						</span>
+					)}
 				</div>
 
 				<div className="w-screen h-screen border border-red-400">
